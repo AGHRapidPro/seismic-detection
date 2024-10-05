@@ -1,13 +1,16 @@
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+import matplotlib.pyplot as plt
+import math
+import numpy as np
 
-# Version 1.5: Updated size indicator to reflect changes dynamically on window resize.
+# Version 1.7: Moved value reading inside the button functions to capture input only when buttons are pressed.
 
 # Create the root window
 root = tk.Tk()
-root.title("Rapid Seismic App")
-root.geometry("1600x700")
+root.title("Rapid Seismic App")  # Change window name
+root.geometry("600x600")
 
 # Set modern theme colors
 bg_color = "#1F1F1F"  # Dark background color
@@ -20,14 +23,16 @@ root.configure(bg=bg_color)
 
 # Global variables to store the paths of the selected files
 selected_csv_path = None
-# Static PNG file path (update the path below to the actual image location)
-static_png_path = "test.png"  # Update this to your actual PNG file path
+# Static PNG file path (set to "test.png")
+static_png_path = "test.png"  # Update to your actual PNG file path if necessary
 original_img = None
 fhd_img = None
 
 # Placeholder function 1 (now handles loading/resizing the .png file)
 def func1():
-    global original_img, fhd_img, static_png_path
+    value = int(func1_entry.get())  # Get the value from the input field for func1 when the button is pressed
+    print(f"Function 1 input value: {value}")
+    global original_img, fhd_img
 
     f = open("code\XB.ELYSE.02.BHV.2021-05-02HR01_evid0017.csv")
     dataraw = f.readlines()
@@ -39,6 +44,16 @@ def func1():
     for x in data[1:]:
         xaxis.append(float(x[1]))
         yaxis.append(float(x[2]))
+    fig, axs = plt.subplots(2,figsize=(19,5))
+    axs[0].plot(xaxis, yaxis)
+    axs[0].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='original_data') #c/s or m/s
+    axs[0].grid()
+    axs[0].axhline(y = value, color = 'r', linestyle = '-')
+    for i in range(len(xaxis)):
+        if yaxis[i]>=value:
+            axs[0].axvline(x = xaxis[i],color = 'r', linestyle = '-')
+    #dodać zapis do .csv
+    fig.savefig("test.png",dpi = 300)
     try:
         # Load the static .png file and store the original image
         original_img = Image.open(static_png_path)
@@ -49,8 +64,8 @@ def func1():
         # Display the compressed image, resized to fit the window
         resize_image()
 
-        label.config(text="Function 1 executed: Loaded and resized the image")
-        print("Function 1 executed: Loaded and resized the image")
+        label.config(text=f"Function 1 executed: Loaded and resized the image with input {value}")
+        print(f"Function 1 executed: Loaded and resized the image with input {value}")
 
     except Exception as e:
         label.config(text=f"Error loading image in func1: {e}")
@@ -58,6 +73,8 @@ def func1():
 
 # Placeholder function 2 (also handles loading/resizing the .png file)
 def func2():
+    value = func2_entry.get()  # Get the value from the input field for func2 when the button is pressed
+    print(f"Function 2 input value: {value}")
     global original_img, fhd_img
 
     try:
@@ -70,8 +87,8 @@ def func2():
         # Display the compressed image, resized to fit the window
         resize_image()
 
-        label.config(text="Function 2 executed: Loaded and resized the image")
-        print("Function 2 executed: Loaded and resized the image")
+        label.config(text=f"Function 2 executed: Loaded and resized the image with input {value}")
+        print(f"Function 2 executed: Loaded and resized the image with input {value}")
 
     except Exception as e:
         label.config(text=f"Error loading image in func2: {e}")
@@ -79,12 +96,14 @@ def func2():
 
 # Function to open file explorer and get CSV file path
 def open_csv_explorer():
-    global selected_csv_path  # Make the path accessible globally
+    value = csv_entry.get()  # Get the value from the CSV input field when the button is pressed
+    print(f"CSV file input value: {value}")
+    global selected_csv_path
     selected_csv_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])  # Open file dialog for .csv files
 
     if selected_csv_path:
-        label.config(text=f"Selected CSV File: {selected_csv_path}")  # Display selected file
-        print(f"Selected CSV File: {selected_csv_path}")
+        label.config(text=f"Selected CSV File: {selected_csv_path} with input {value}")  # Display selected file
+        print(f"Selected CSV File: {selected_csv_path} with input {value}")
     else:
         label.config(text="No CSV file selected")
         print("No CSV file selected")
@@ -147,13 +166,25 @@ button_frame.pack(pady=10)
 btn_csv = tk.Button(button_frame, text="Choose CSV File", command=open_csv_explorer, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
 btn_csv.pack(side=tk.LEFT, padx=10)
 
+# Entry field for CSV input value
+csv_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
+csv_entry.pack(side=tk.LEFT, padx=10)
+
 # Button to execute func1 (now loads and resizes the .png)
 btn_func1 = tk.Button(button_frame, text="Execute Function 1", command=func1, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
 btn_func1.pack(side=tk.LEFT, padx=10)
 
+# Entry field for Function 1 input value
+func1_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
+func1_entry.pack(side=tk.LEFT, padx=10)
+
 # Button to execute func2 (now loads and resizes the .png)
 btn_func2 = tk.Button(button_frame, text="Execute Function 2", command=func2, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
 btn_func2.pack(side=tk.LEFT, padx=10)
+
+# Entry field for Function 2 input value
+func2_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
+func2_entry.pack(side=tk.LEFT, padx=10)
 
 # Label to show selected file
 label = tk.Label(main_frame, text="No file selected", bg=bg_color, fg=text_color, font=("Helvetica", 14))
