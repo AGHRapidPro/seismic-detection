@@ -4,7 +4,7 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 import math
 import numpy as np
-
+import obspy
 # Version 1.7: Moved value reading inside the button functions to capture input only when buttons are pressed.
 
 # Create the root window
@@ -27,23 +27,30 @@ selected_csv_path = None
 static_png_path = "test.png"  # Update to your actual PNG file path if necessary
 original_img = None
 fhd_img = None
+def load_mseed_file(filepath):
+    st = obspy.read(filepath)
+    trace = st.traces[0].copy()
 
+    times = trace.times()
+    data = trace.data
+    stats = trace.stats
+
+    return times, data, stats
 # Placeholder function 1 (now handles loading/resizing the .png file)
 def func1():
     value = int(func1_entry.get())  # Get the value from the input field for func1 when the button is pressed
     print(f"Function 1 input value: {value}")
     global original_img, fhd_img
 
-    f = open("code\XB.ELYSE.02.BHV.2021-05-02HR01_evid0017.csv")
-    dataraw = f.readlines()
-    data = []
     xaxis = []
     yaxis = []
-    for x in dataraw:
-        data.append(x.split(','))
-    for x in data[1:]:
-        xaxis.append(float(x[1]))
-        yaxis.append(float(x[2]))
+    stats = []
+    xaxis,yaxis,stats = load_mseed_file("code\XB.ELYSE.02.BHV.2021-05-02HR01_evid0017.mseed")
+    #for x in dataraw:
+    #    data.append(x.split(','))
+    #for x in data[1:]:
+    #    xaxis.append(float(x[1]))
+    #    yaxis.append(float(x[2]))
     fig, axs = plt.subplots(2,figsize=(19,5))
     axs[0].plot(xaxis, yaxis)
     axs[0].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='original_data') #c/s or m/s
@@ -51,7 +58,7 @@ def func1():
     axs[0].axhline(y = value, color = 'r', linestyle = '-')
     for i in range(len(xaxis)):
         if yaxis[i]>=value:
-            axs[0].axvline(x = xaxis[i],color = 'r', linestyle = '-')
+            axs[0].axvline(x = xaxis[i],color = 'g', linestyle = '-')
     #dodać zapis do .csv
     fig.savefig("test.png",dpi = 300)
     try:
