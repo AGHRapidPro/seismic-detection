@@ -6,7 +6,8 @@ import math
 import numpy as np
 import obspy
 import os
-
+import scipy
+import scipy.signal
 # Version 2.2: Set default resolution to 900x600, renamed value1 to trigger_level
 
 # Create the root window
@@ -39,22 +40,48 @@ def load_mseed_file(filepath):
 
     return times, data, stats
 # Function for calculating positions of quakes and showing .png representation
+
+
+# Create the bandpass filter
+def butter_bandpass(lowcut, highcut, fs, order=3):
+    nyquist = 0.5 * fs  # Nyquist frequency is half the sampling rate
+    low = lowcut / nyquist
+    high = highcut / nyquist
+    b, a = scipy.signal.butter(order, [low, high], btype='band')
+    return b, a
+
+# Apply the filter to the signal
+def apply_bandpass_filter(yaxis, lowcut, highcut, fs, order=4):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y_filtered = scipy.signal.filtfilt(b, a, yaxis)
+    return y_filtered
+
+
 def func1():
     global selected_mseed_path
     trigger_level = int(trigger_level_entry.get())  
     window_size = int(window_size_entry.get())
+    lowfreq = float(lowfreq_entry.get())
+    highfreq = float(highfreq_entry.get())
     p = os.path.normpath(selected_mseed_path).split(os.path.sep)
     print(f"Function 1 input value: {trigger_level}")
     global original_img, fhd_img
     print(p)
     print(p[-2]+'\\'+p[-1])
-    # Trigger algorithm on raw data
     xaxis = []
     yaxis = []
     stats = []
     xaxis,yaxis,stats = load_mseed_file(p[-2]+'\\'+p[-1])
+
+    # Define the bandpass filter parameters
+    lowcut = 0.3   # Lower frequency bound (Hz)
+    highcut = 7.0 # Upper frequency bound (Hz)
+    fs = len(xaxis) / (xaxis[-1] - xaxis[0])  # Sampling frequency based on the time array
+    y_filtered = apply_bandpass_filter(yaxis, lowfreq, highfreq, fs)
+    # Trigger algorithm on raw data
+    
     # Trigger algorithm on)
-    fig, axs = plt.subplots(3,figsize=(19,8))
+    fig, axs = plt.subplots(4,figsize=(18,11))
     axs[0].plot(xaxis, yaxis)
     axs[0].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='original_data') #c/s or m/s
     axs[0].grid()
@@ -63,20 +90,29 @@ def func1():
         if yaxis[i]>=trigger_level:
             axs[0].axvline(x = xaxis[i],color = 'g', linestyle = '-')
 
+    axs[1].plot(xaxis, y_filtered)
+    axs[1].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='filtered_data') #c/s or m/s
+    axs[1].grid()
+    axs[1].axhline(y = trigger_level, color = 'r', linestyle = '-')
+    for i in range(len(xaxis)):
+        if y_filtered[i]>=trigger_level:
+            axs[1].axvline(x = xaxis[i],color = 'g', linestyle = '-')
+
+
     # Trigger algorithm on window avg
-    yaxis_abs = [abs(x) for x in yaxis]
+    yaxis_abs = [abs(x) for x in y_filtered]
     xaxis_wavg = []
     yaxis_wavg = []
     for i in range(0,len(xaxis)-window_size):
         xaxis_wavg.append(xaxis[i])
         yaxis_wavg.append(sum(yaxis_abs[i:i+window_size])/window_size)
-    axs[1].plot(xaxis_wavg, yaxis_wavg)
-    axs[1].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='window averge') #c/s or m/s
-    axs[1].grid()
-    axs[1].axhline(y = trigger_level, color = 'r', linestyle = '-')
+    axs[2].plot(xaxis_wavg, yaxis_wavg)
+    axs[2].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='window averge') #c/s or m/s
+    axs[2].grid()
+    axs[2].axhline(y = trigger_level, color = 'r', linestyle = '-')
     for i in range(len(xaxis_wavg)):
         if yaxis_wavg[i]>=trigger_level:
-            axs[1].axvline(x = xaxis[i],color = 'g', linestyle = '-')
+            axs[2].axvline(x = xaxis[i],color = 'g', linestyle = '-')
     while(len(xaxis_wavg)<len(xaxis)):
         xaxis_wavg.append(2*xaxis_wavg[-1]-xaxis_wavg[-2])
         yaxis_wavg.append(0)
@@ -86,15 +122,15 @@ def func1():
     yaxis_deriv = []
     yaxis_deriv.append(0)
     for i in range(1,len(xaxis)):
-        yaxis_deriv.append(yaxis[i]-yaxis[i-1])
+        yaxis_deriv.append(y_filtered[i]-y_filtered[i-1])
 
-    axs[2].plot(xaxis, yaxis_deriv)
-    axs[2].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='derivative') #c/s or m/s
-    axs[2].grid()
-    axs[2].axhline(y = trigger_level, color = 'r', linestyle = '-')
+    axs[3].plot(xaxis, yaxis_deriv)
+    axs[3].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='derivative') #c/s or m/s
+    axs[3].grid()
+    axs[3].axhline(y = trigger_level, color = 'r', linestyle = '-')
     for i in range(len(xaxis)):
         if yaxis_deriv[i]>=trigger_level:
-            axs[2].axvline(x = xaxis[i],color = 'g', linestyle = '-')
+            axs[3].axvline(x = xaxis[i],color = 'g', linestyle = '-')
         
     # add .csv file saving
     fig.savefig("test.png",dpi = 300)
@@ -236,10 +272,10 @@ trigger_level_entry = create_input_field(input_frame, "Trigger Level", 750)
 window_size_entry = create_input_field(input_frame, "window size", 5)
 
 # Label and Entry field for additional Function 3 input value (value3) with default value 10
-func3_entry = create_input_field(input_frame, "Value3", 10)
+lowfreq_entry = create_input_field(input_frame, "lowfreq", 0.1)
 
 # Label and Entry field for additional Function 4 input value (value4) with default value 15
-func4_entry = create_input_field(input_frame, "Value4", 15)
+highfreq_entry = create_input_field(input_frame, "highfreq", 10)
 
 # Label to show selected file
 label = tk.Label(main_frame, text="No file selected", bg=bg_color, fg=text_color, font=("Helvetica", 14))
