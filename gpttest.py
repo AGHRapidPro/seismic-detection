@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import math
 import numpy as np
 import obspy
-# Version 1.7: Moved value reading inside the button functions to capture input only when buttons are pressed.
+import os
+
+# Version 2.2: Set default resolution to 900x600, renamed value1 to trigger_level
 
 # Create the root window
 root = tk.Tk()
 root.title("Rapid Seismic App")  # Change window name
-root.geometry("600x600")
+root.geometry("900x600")
 
 # Set modern theme colors
 bg_color = "#1F1F1F"  # Dark background color
@@ -22,7 +24,7 @@ accent_color = "#3B3B3B"  # Darker accent
 root.configure(bg=bg_color)
 
 # Global variables to store the paths of the selected files
-selected_csv_path = None
+selected_mseed_path = None
 # Static PNG file path (set to "test.png")
 static_png_path = "test.png"  # Update to your actual PNG file path if necessary
 original_img = None
@@ -36,30 +38,65 @@ def load_mseed_file(filepath):
     stats = trace.stats
 
     return times, data, stats
-# Placeholder function 1 (now handles loading/resizing the .png file)
+# Function for calculating positions of quakes and showing .png representation
 def func1():
-    value = int(func1_entry.get())  # Get the value from the input field for func1 when the button is pressed
-    print(f"Function 1 input value: {value}")
+    global selected_mseed_path
+    trigger_level = int(trigger_level_entry.get())  
+    window_size = int(window_size_entry.get())
+    p = os.path.normpath(selected_mseed_path).split(os.path.sep)
+    print(f"Function 1 input value: {trigger_level}")
     global original_img, fhd_img
-
+    print(p)
+    print(p[-2]+'\\'+p[-1])
+    # Trigger algorithm on raw data
     xaxis = []
     yaxis = []
     stats = []
-    xaxis,yaxis,stats = load_mseed_file("code\XB.ELYSE.02.BHV.2021-05-02HR01_evid0017.mseed")
-    #for x in dataraw:
-    #    data.append(x.split(','))
-    #for x in data[1:]:
-    #    xaxis.append(float(x[1]))
-    #    yaxis.append(float(x[2]))
-    fig, axs = plt.subplots(2,figsize=(19,5))
+    xaxis,yaxis,stats = load_mseed_file(p[-2]+'\\'+p[-1])
+    # Trigger algorithm on)
+    fig, axs = plt.subplots(3,figsize=(19,8))
     axs[0].plot(xaxis, yaxis)
     axs[0].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='original_data') #c/s or m/s
     axs[0].grid()
-    axs[0].axhline(y = value, color = 'r', linestyle = '-')
+    axs[0].axhline(y = trigger_level, color = 'r', linestyle = '-')
     for i in range(len(xaxis)):
-        if yaxis[i]>=value:
+        if yaxis[i]>=trigger_level:
             axs[0].axvline(x = xaxis[i],color = 'g', linestyle = '-')
-    #dodać zapis do .csv
+
+    # Trigger algorithm on window avg
+    yaxis_abs = [abs(x) for x in yaxis]
+    xaxis_wavg = []
+    yaxis_wavg = []
+    for i in range(0,len(xaxis)-window_size):
+        xaxis_wavg.append(xaxis[i])
+        yaxis_wavg.append(sum(yaxis_abs[i:i+window_size])/window_size)
+    axs[1].plot(xaxis_wavg, yaxis_wavg)
+    axs[1].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='window averge') #c/s or m/s
+    axs[1].grid()
+    axs[1].axhline(y = trigger_level, color = 'r', linestyle = '-')
+    for i in range(len(xaxis_wavg)):
+        if yaxis_wavg[i]>=trigger_level:
+            axs[1].axvline(x = xaxis[i],color = 'g', linestyle = '-')
+    while(len(xaxis_wavg)<len(xaxis)):
+        xaxis_wavg.append(2*xaxis_wavg[-1]-xaxis_wavg[-2])
+        yaxis_wavg.append(0)
+
+    # Trigger algorithm on derivative
+
+    yaxis_deriv = []
+    yaxis_deriv.append(0)
+    for i in range(1,len(xaxis)):
+        yaxis_deriv.append(yaxis[i]-yaxis[i-1])
+
+    axs[2].plot(xaxis, yaxis_deriv)
+    axs[2].set(xlabel='time (s)', ylabel='amplitude (m/s)',title='derivative') #c/s or m/s
+    axs[2].grid()
+    axs[2].axhline(y = trigger_level, color = 'r', linestyle = '-')
+    for i in range(len(xaxis)):
+        if yaxis_deriv[i]>=trigger_level:
+            axs[2].axvline(x = xaxis[i],color = 'g', linestyle = '-')
+        
+    # add .csv file saving
     fig.savefig("test.png",dpi = 300)
     try:
         # Load the static .png file and store the original image
@@ -71,8 +108,8 @@ def func1():
         # Display the compressed image, resized to fit the window
         resize_image()
 
-        label.config(text=f"Function 1 executed: Loaded and resized the image with input {value}")
-        print(f"Function 1 executed: Loaded and resized the image with input {value}")
+        label.config(text=f"Function 1 executed: Loaded and resized the image with input {trigger_level}")
+        print(f"Function 1 executed: Loaded and resized the image with input {trigger_level}")
 
     except Exception as e:
         label.config(text=f"Error loading image in func1: {e}")
@@ -80,7 +117,7 @@ def func1():
 
 # Placeholder function 2 (also handles loading/resizing the .png file)
 def func2():
-    value = func2_entry.get()  # Get the value from the input field for func2 when the button is pressed
+    value = window_size_entry.get()  # Get the value from the input field for func2 when the button is pressed
     print(f"Function 2 input value: {value}")
     global original_img, fhd_img
 
@@ -102,19 +139,17 @@ def func2():
         print(f"Error loading image in func2: {e}")
 
 # Function to open file explorer and get CSV file path
-def open_csv_explorer():
-    value = csv_entry.get()  # Get the value from the CSV input field when the button is pressed
-    print(f"CSV file input value: {value}")
-    global selected_csv_path
-    selected_csv_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])  # Open file dialog for .csv files
+# Function to open file explorer and get MSEED file path
+def open_mseed_explorer():
+    global selected_mseed_path
+    selected_mseed_path = filedialog.askopenfilename(filetypes=[("MSEED files", "*.mseed")])  # Open file dialog for .mseed files
 
-    if selected_csv_path:
-        label.config(text=f"Selected CSV File: {selected_csv_path} with input {value}")  # Display selected file
-        print(f"Selected CSV File: {selected_csv_path} with input {value}")
+    if selected_mseed_path:
+        label.config(text=f"Selected MSEED File: {selected_mseed_path}")  # Display selected file
+        print(f"Selected MSEED File: {selected_mseed_path}")
     else:
-        label.config(text="No CSV file selected")
-        print("No CSV file selected")
-
+        label.config(text="No MSEED file selected")
+        print("No MSEED file selected")
 # Function to compress image to FHD (1920x1080) while maintaining aspect ratio
 def compress_to_fhd(image):
     max_width, max_height = 1920, 1080
@@ -169,29 +204,42 @@ main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 button_frame = tk.Frame(main_frame, bg=bg_color)  # Set background color for frame
 button_frame.pack(pady=10)
 
-# Button to trigger CSV file explorer
-btn_csv = tk.Button(button_frame, text="Choose CSV File", command=open_csv_explorer, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
-btn_csv.pack(side=tk.LEFT, padx=10)
-
-# Entry field for CSV input value
-csv_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
-csv_entry.pack(side=tk.LEFT, padx=10)
+# Button to trigger MSEED file explorer
+btn_mseed = tk.Button(button_frame, text="Choose MSEED File", command=open_mseed_explorer, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
+btn_mseed.pack(side=tk.LEFT, padx=10)
 
 # Button to execute func1 (now loads and resizes the .png)
 btn_func1 = tk.Button(button_frame, text="Execute Function 1", command=func1, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
 btn_func1.pack(side=tk.LEFT, padx=10)
 
-# Entry field for Function 1 input value
-func1_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
-func1_entry.pack(side=tk.LEFT, padx=10)
-
 # Button to execute func2 (now loads and resizes the .png)
 btn_func2 = tk.Button(button_frame, text="Execute Function 2", command=func2, bg=primary_color, fg=text_color, font=("Helvetica", 12), relief=tk.FLAT)
 btn_func2.pack(side=tk.LEFT, padx=10)
 
-# Entry field for Function 2 input value
-func2_entry = tk.Entry(button_frame, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
-func2_entry.pack(side=tk.LEFT, padx=10)
+# Frame for input fields (to position below buttons in a single row)
+input_frame = tk.Frame(main_frame, bg=bg_color)
+input_frame.pack(pady=10)
+
+# Create input fields with labels for function inputs (aligned horizontally)
+def create_input_field(parent, label_text, default_value):
+    label = tk.Label(parent, text=label_text, bg=bg_color, fg=text_color, font=("Helvetica", 10))
+    label.pack(side=tk.LEFT, padx=10)
+    entry = tk.Entry(parent, bg=accent_color, fg=text_color, font=("Helvetica", 12), width=10, relief=tk.FLAT)
+    entry.insert(0, default_value)  # Set default value
+    entry.pack(side=tk.LEFT, padx=10)
+    return entry
+
+# Label and Entry field for trigger_level (renamed from value1) with default value 750
+trigger_level_entry = create_input_field(input_frame, "Trigger Level", 750)
+
+# Label and Entry field for Function 2 input value (value2) with default value 5
+window_size_entry = create_input_field(input_frame, "window size", 5)
+
+# Label and Entry field for additional Function 3 input value (value3) with default value 10
+func3_entry = create_input_field(input_frame, "Value3", 10)
+
+# Label and Entry field for additional Function 4 input value (value4) with default value 15
+func4_entry = create_input_field(input_frame, "Value4", 15)
 
 # Label to show selected file
 label = tk.Label(main_frame, text="No file selected", bg=bg_color, fg=text_color, font=("Helvetica", 14))
@@ -202,7 +250,7 @@ image_label = tk.Label(main_frame, bg=bg_color)
 image_label.pack(pady=20)
 
 # Label to show current window size
-size_label = tk.Label(main_frame, text="[600] x [600]", bg=bg_color, fg=text_color, font=("Helvetica", 12))
+size_label = tk.Label(main_frame, text="[900] x [600]", bg=bg_color, fg=text_color, font=("Helvetica", 12))
 size_label.pack(pady=10)
 
 # Bind the window resize event to the resize_image function
